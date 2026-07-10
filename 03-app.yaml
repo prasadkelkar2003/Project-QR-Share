@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photo-share-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: photo-share
+  template:
+    metadata:
+      labels:
+        app: photo-share
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: controlplane
+      containers:
+      - name: app-container
+        image: photo-share:local
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 5000
+        env:
+        - name: GUEST_PASS
+          valueFrom:
+            secretKeyRef:
+              name: wedding-auth-secrets
+              key: GUEST_PASSWORD
+        - name: ADMIN_PASS
+          valueFrom:
+            secretKeyRef:
+              name: wedding-auth-secrets
+              key: ADMIN_PASSWORD
+        - name: ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wedding-auth-secrets
+              key: STORAGE_ACCESS_KEY
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wedding-auth-secrets
+              key: STORAGE_SECRET_KEY
+        - name: MINIO_ENDPOINT
+          value: "http://minio-service:9000"
+        - name: BUCKET_NAME
+          value: "wedding-photos"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: photo-share-service
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 5000
+    nodePort: 30080
+  selector:
+    app: photo-share
