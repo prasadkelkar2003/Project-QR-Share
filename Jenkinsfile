@@ -20,7 +20,6 @@ pipeline {
             steps {
                 script {
                     echo "Compiling code layers into container binary..."
-                    // Standardizes image tags for deployment and backup tracking
                     sh "docker build -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG} ."
                     sh "docker build -t ${DOCKER_HUB_USER}/${IMAGE_NAME}:latest ."
                 }
@@ -45,11 +44,11 @@ pipeline {
                 script {
                     echo "Injecting builds dynamically into infrastructure layer..."
                     
-                    // 1. Swap out the local image token path for your live Docker Hub repo image stream
-                    sh "sed -i 's|image: photo-share:local|image: ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}|g' k8s/03-app.yaml"
+                    // 1. 🛠️ FIXED: Uses a regex wildcard to match ANY previous image string and swap it with the fresh build tag
+                    sh "sed -i 's|image: .*photo-share.*|image: ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}|g' k8s/03-app.yaml"
                     
-                    // 2. Change pull policy to Always so the cluster pulls the clean layer down from Docker Hub
-                    sh "sed -i 's|imagePullPolicy: Never|imagePullPolicy: Always|g' k8s/03-app.yaml"
+                    // 2. 🛠️ FIXED: Uses a regex wildcard to match ANY pull policy string and force it to Always
+                    sh "sed -i 's|imagePullPolicy: .*|imagePullPolicy: Always|g' k8s/03-app.yaml"
                     
                     // 3. Directly target the local node cluster using the host credentials
                     sh "kubectl apply -f k8s/01-secrets.yaml"
