@@ -8,32 +8,37 @@ CI/CD loop using Jenkins, Docker Hub, and Kubernetes inside a clean Killercoda s
 [PHASE 1] ENVIRONMENT BOOTSTRAP & SYSTEM RIGHTS
 --------------------------------------------------------------------------------
 
-🔹 STEP 1.1: Spin up the background Jenkins engine daemon
-   👉 Run this command:
-   curl -fsSL https://raw.githubusercontent.com/prasadkelkar2003/jenkins-running/main/jenkins-run.sh | bash
+[STEP 1.1] SPIN UP THE BACKGROUND JENKINS ENGINE DAEMON
+   👉 RUN THIS COMMAND:
+   $ curl -fsSL https://raw.githubusercontent.com/prasadkelkar2003/jenkins-running/main/jenkins-run.sh | bash
 
-🔹 STEP 1.2: Bridge permissions so the 'jenkins' user can command Kubernetes
-   👉 Run this command:
-   sudo cp -r /root/.kube /var/lib/jenkins/ && sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
+[STEP 1.2] BRIDGE PERMISSIONS FOR KUBERNETES CONTROL
+   👉 RUN THIS COMMAND:
+   $ sudo cp -r /root/.kube /var/lib/jenkins/ && sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
 
-🔹 STEP 1.3: Grant Jenkins access to the local Docker engine socket interface
-   👉 Run this command:
-   sudo usermod -aG docker jenkins && sudo systemctl restart docker && sudo systemctl restart jenkins
+[STEP 1.3] GRANT JENKINS ACCESS TO THE DOCKER DAEMON SOCKET
+   👉 RUN THIS COMMAND:
+   $ sudo usermod -aG docker jenkins && sudo systemctl restart docker && sudo systemctl restart jenkins
 
 
 --------------------------------------------------------------------------------
 [PHASE 2] CLONE CODEBASE & BYPASS PROXY LOCKS
 --------------------------------------------------------------------------------
 
-🔹 STEP 2.1: Download your application architecture files onto the node
-   👉 Run these commands:
-   git clone https://github.com/prasadkelkar2003/Project-QR-Share.git
-   cd Project-QR-Share
+[STEP 2.1] DOWNLOAD APPLICATION ARCHITECTURE FILES
+   👉 RUN THESE COMMANDS:
+   $ git clone https://github.com/prasadkelkar2003/Project-QR-Share.git
+   $ cd Project-QR-Share
 
-🔹 STEP 2.2: Drop the local initialization bypass hook file straight to disk
-   💡 Note: This pre-configures the missing root Jenkins URL parameters to 
-      sidestep 403 proxy blocks and securely injects your Docker Hub automation token.
-   👉 Copy-paste this entire block into your terminal:
+[STEP 2.2] SET YOUR DOCKER HUB SECRET TOKEN
+   👉 INSTRUCTION: Copy your 'dckr_pat_...' key from your private notes app, 
+      replace the placeholder below, and execute it in your terminal window:
+   $ export DOCKER_HUB_PAT='PASTE_YOUR_SECRET_TOKEN_HERE'
+
+[STEP 2.3] DROP THE INITIALIZATION BYPASS HOOK FILE TO DISK
+   💡 NOTE: This script reads your active terminal variable to dynamically inject 
+      your credentials directly into Jenkins, completely bypassing the network proxy.
+   👉 COPY-PASTE THIS ENTIRE GROOVY BLOCK INTO YOUR TERMINAL:
 
 sudo mkdir -p /var/lib/jenkins/init.groovy.d/
 sudo cat <<GROOVY > /var/lib/jenkins/init.groovy.d/force_inject.groovy
@@ -56,60 +61,60 @@ def credential = new UsernamePasswordCredentialsImpl(
   "docker-hub-credentials",
   "Docker Hub Automation Token",
   "prad2003",
-  "dckr_pat_Z00-HdhiiXC2IAROavxZvRqPvDU"
+  "${DOCKER_HUB_PAT}"
 )
 store.addCredentials(domain, credential)
 GROOVY
 
-🔹 STEP 2.3: Reset hook permissions and reboot Jenkins to execute the script
-   👉 Run these commands:
-   sudo chown -R jenkins:jenkins /var/lib/jenkins/init.groovy.d/
-   sudo systemctl restart jenkins
+[STEP 2.4] RESET HOOK PERMISSIONS AND REBOOT JENKINS
+   👉 RUN THESE COMMANDS:
+   $ sudo chown -R jenkins:jenkins /var/lib/jenkins/init.groovy.d/
+   $ sudo systemctl restart jenkins
    
-   ⚠️ Wait 15 seconds for Jenkins to complete its internal startup sequence!
+   ⚠️ CRITICAL: WAIT 15 SECONDS FOR SYSTEM INITIALIZATION BEFORE NEXT PHASE!
 
 
 --------------------------------------------------------------------------------
 [PHASE 3] LINK REPOSITORY TO JENKINS UI
 --------------------------------------------------------------------------------
 
-🔹 STEP 3.1: Open up the web dashboard interface
-   👉 Navigation instructions:
-   -> Go to 'Traffic / Ports' at the very top of your Killercoda interface panel.
-   -> Select 'Access Port', type 8080, and hit Enter.
+[STEP 3.1] OPEN THE WEB DASHBOARD INTERFACE
+   👉 NAVIGATION INSTRUCTIONS:
+   -> Go to 'TRAFFIC / PORTS' at the very top of your Killercoda panel interface.
+   -> Select 'ACCESS PORT', type 8080, and hit ENTER.
 
-🔹 STEP 3.2: Map your GitOps pipeline job
-   👉 Interface UI steps:
-   -> Click 'New Item' on the top-left sidebar menu layout.
-   -> Name it exactly: Project-QR-Share
-   -> Select 'Pipeline' as the project style type, then click 'OK'.
+[STEP 3.2] MAP YOUR GITOPS PIPELINE JOB
+   👉 INTERFACE UI STEPS:
+   -> Click 'NEW ITEM' on the top-left sidebar menu layout.
+   -> Name it exactly: PROJECT-QR-SHARE
+   -> Select 'PIPELINE' as the project style type, then click 'OK'.
    
-🔹 STEP 3.3: Complete the SCM configurations at the bottom of the page
-   👉 Fill out these exact parameters:
-   -> Definition     : "Pipeline script from SCM"
-   -> SCM            : "Git"
-   -> Repository URL : https://github.com/prasadkelkar2003/Project-QR-Share
+[STEP 3.3] COMPLETE THE SCM CONFIGURATIONS AT THE BOTTOM OF THE PAGE
+   👉 FILL OUT THESE EXACT FIELDS IN THE INTERFACE:
+   -> Definition      : "Pipeline script from SCM"
+   -> SCM             : "Git"
+   -> Repository URL  : https://github.com/prasadkelkar2003/Project-QR-Share
    -> Branch Specifier: "*/main"
-   -> Script Path    : "Jenkinsfile"
-   -> Click 'Save'.
+   -> Script Path     : "Jenkinsfile"
+   -> Click 'SAVE'.
 
 
 --------------------------------------------------------------------------------
 [PHASE 4] TRIGGER EXECUTION & VERIFY SERVICE LIVE
 --------------------------------------------------------------------------------
 
-🔹 STEP 4.1: Launch the automated cloud build
-   👉 UI step:
-   -> Click 'Build Now' on the left dashboard menu navigation.
-   -> Watch the Stage View turn bright green step-by-step.
+[STEP 4.1] LAUNCH THE AUTOMATED CLOUD BUILD
+   👉 UI STEP:
+   -> Click 'BUILD NOW' on the left dashboard menu navigation.
+   -> Watch the Stage View grid turn bright green step-by-step.
 
-🔹 STEP 4.2: Verify your resources are running stably inside the terminal cluster
-   👉 Run these verification commands:
-   kubectl get pods
-   kubectl get svc
+[STEP 4.2] VERIFY RUNNING CLUSTER WORKLOADS
+   👉 RUN THESE VERIFICATION COMMANDS IN TERMINAL:
+   $ kubectl get pods
+   $ kubectl get svc
 
-🔹 STEP 4.3: Access your live running web application!
-   👉 Navigation instructions:
-   -> Head back to the 'Traffic / Ports' menu tab at the top of the screen.
-   -> Select 'Access Port', type 30080, and launch your operational platform!
+[STEP 4.3] ACCESS YOUR LIVE RUNNING WEB APPLICATION!
+   👉 NAVIGATION INSTRUCTIONS:
+   -> Head back to the 'TRAFFIC / PORTS' menu tab at the top of the screen.
+   -> Select 'ACCESS PORT', type 30080, and launch your operational platform!
 ================================================================================
