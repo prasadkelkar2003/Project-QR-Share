@@ -6,11 +6,11 @@ WORKDIR /app
 RUN useradd -m appuser && chown -R appuser /app
 
 # Cache dependencies layer
-COPY src/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source logic
-COPY src/app.py .
+COPY app.py .
 
 USER appuser
 
