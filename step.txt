@@ -36,9 +36,9 @@ CI/CD loop using Jenkins, Docker Hub, and Kubernetes inside a clean Killercoda s
    $ export DOCKER_HUB_PAT='PASTE_YOUR_SECRET_TOKEN_HERE'
 
 [STEP 2.3] DROP THE INITIALIZATION BYPASS HOOK FILE TO DISK
-   💡 NOTE: This script reads your active terminal variable to dynamically inject 
-      your credentials directly into Jenkins, completely bypassing the network proxy.
-   👉 COPY-PASTE THIS ENTIRE GROOVY BLOCK INTO YOUR TERMINAL:
+   💡 NOTE: This script reads your active terminal variable dynamically to safely 
+      inject your credentials directly into Jenkins, bypassing the network proxy.
+   👉 COPY-PASTE THIS ENTIRE GROOVY BLOCK INTO YOUR TERMINAL AS ONE COMMAND:
 
 sudo mkdir -p /var/lib/jenkins/init.groovy.d/
 sudo cat <<GROOVY > /var/lib/jenkins/init.groovy.d/force_inject.groovy
@@ -61,7 +61,7 @@ def credential = new UsernamePasswordCredentialsImpl(
   "docker-hub-credentials",
   "Docker Hub Automation Token",
   "prad2003",
-  "${DOCKER_HUB_PAT}"
+  "\${DOCKER_HUB_PAT}"
 )
 store.addCredentials(domain, credential)
 GROOVY
