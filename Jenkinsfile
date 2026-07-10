@@ -44,15 +44,15 @@ pipeline {
                 script {
                     echo "Injecting builds dynamically into infrastructure layer..."
                     
-                    // 1. 🛠️ FIXED: Uses a regex wildcard to match ANY previous image string and swap it with the fresh build tag
-                    sh "sed -i 's|image: .*photo-share.*|image: ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}|g' k8s/03-app.yaml"
+                    // 1. 🛠️ Fixed path: Look directly in the root directory for 03-app.yaml
+                    sh "sed -i 's|image: .*photo-share.*|image: ${DOCKER_HUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}|g' 03-app.yaml"
                     
-                    // 2. 🛠️ FIXED: Uses a regex wildcard to match ANY pull policy string and force it to Always
-                    sh "sed -i 's|imagePullPolicy: .*|imagePullPolicy: Always|g' k8s/03-app.yaml"
+                    // 2. 🛠️ Fixed path: Update pull policy directly in the root directory file
+                    sh "sed -i 's|imagePullPolicy: .*|imagePullPolicy: Always|g' 03-app.yaml"
                     
-                    // 3. Directly target the local node cluster using the host credentials
-                    sh "kubectl apply -f k8s/01-secrets.yaml"
-                    sh "kubectl apply -f k8s/02-minio.yaml"
+                    // 3. Directly target the local node cluster using the root manifests
+                    sh "kubectl apply -f 01-secrets.yaml"
+                    sh "kubectl apply -f 02-minio.yaml"
                     
                     // 4. Ensure internal S3 target allocation bucket configuration maps are alive
                     sh "kubectl wait --for=condition=ready pod -l app=minio --timeout=60s"
@@ -62,7 +62,7 @@ pipeline {
                     """
                     
                     // 5. Update application deployment live parameters
-                    sh "kubectl apply -f k8s/03-app.yaml"
+                    sh "kubectl apply -f 03-app.yaml"
                     sh "kubectl rollout restart deployment/photo-share-deployment"
                 }
             }
