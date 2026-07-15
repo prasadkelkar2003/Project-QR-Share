@@ -21,30 +21,23 @@ spec:
         ports:
         - containerPort: 5000
         env:
-        - name: GUEST_PASS
-          valueFrom:
-            secretKeyRef:
-              name: wedding-auth-secrets
-              key: GUEST_PASSWORD
-        - name: ADMIN_PASS
-          valueFrom:
-            secretKeyRef:
-              name: wedding-auth-secrets
-              key: ADMIN_PASSWORD
-        - name: ACCESS_KEY
+        - name: MINIO_ROOT_USER
           valueFrom:
             secretKeyRef:
               name: wedding-auth-secrets
               key: STORAGE_ACCESS_KEY
-        - name: SECRET_KEY
+        - name: MINIO_ROOT_PASSWORD
           valueFrom:
             secretKeyRef:
               name: wedding-auth-secrets
               key: STORAGE_SECRET_KEY
+        - name: FLASK_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: wedding-auth-secrets
+              key: FLASK_SECRET_KEY
         - name: MINIO_ENDPOINT
           value: "http://minio-service:9000"
-        - name: BUCKET_NAME
-          value: "wedding-photos"
 ---
 apiVersion: v1
 kind: Service
