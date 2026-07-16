@@ -61,10 +61,14 @@ pipeline {
                     sh "export KUBECONFIG=${KUBECONFIG_PATH} && kubectl apply -f 01-secrets.yaml"
                     sh "export KUBECONFIG=${KUBECONFIG_PATH} && kubectl apply -f 02-minio.yaml"
                     
-                    // 4. Waits for the MinIO storage backend engine components to establish a healthy status flag
+                    // 4. Wait for the Deployment controller to register the resources to prevent race conditions
+                    echo "Waiting for MinIO controller initialization..."
+                    sh "export KUBECONFIG=${KUBECONFIG_PATH} && kubectl rollout status deployment/minio-deployment --timeout=30s"
+                    
+                    // 5. Waits for the MinIO storage backend engine components to establish a healthy status flag
                     sh "export KUBECONFIG=${KUBECONFIG_PATH} && kubectl wait --for=condition=ready pod -l app=minio --timeout=60s"
                     
-                    // 5. Deploys the multi-tenant SaaS application layer and performs a smooth rolling update
+                    // 6. Deploys the multi-tenant SaaS application layer and performs a smooth rolling update
                     echo "Rolling out dynamic cloud architecture..."
                     sh "export KUBECONFIG=${KUBECONFIG_PATH} && kubectl apply -f 03-app.yaml"
                     sh "export KUBECONFIG=${KUBECONFIG_PATH} && kubectl rollout restart deployment/photo-share-deployment"
