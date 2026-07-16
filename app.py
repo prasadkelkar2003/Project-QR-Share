@@ -16,10 +16,7 @@ s3_client = boto3.client(
     aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD")
 )
 
-# Shared memory directory for temporary credentials cache across runtime lifecycles
-workspaces_db = {}
-
-# 1. SETUP ROUTE: Workspace creation engine
+# 1. SETUP ROUTE: Workspace creation engine with S3 Metadata Injection
 @app.route('/', methods=['GET', 'POST'])
 def setup_workspace():
     if request.method == 'POST':
@@ -31,19 +28,39 @@ def setup_workspace():
         if not bucket_name or not admin_pass or not guest_pass:
             return "Missing configuration parameters", 400
 
+        # Generate standard hashes
+        admin_hash = generate_password_hash(admin_pass)
+        guest_hash = generate_password_hash(guest_pass)
+
         try:
             # Instruct cloud storage engine to allocate an isolated bucket slice
             s3_client.create_bucket(Bucket=bucket_name)
+            
+            # 🌟 STRATEGY: Store the password hashes securely inside an empty placeholder file metadata
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=".workspace_metadata",
+                Body=b"QR-Share Protected System Files",
+                Metadata={
+                    "admin-hash": admin_hash,
+                    "guest-hash": guest_hash
+                }
+            )
         except ClientError as e:
-            # If it already exists, gracefully pass so we don't break the configuration flow
-            if e.response['Error']['Code'] != 'BucketAlreadyOwnedByYou':
+            # If the bucket exists but the metadata file is missing, recreate it
+            if e.response['Error']['Code'] == 'BucketAlreadyOwnedByYou':
+                s3_client.put_object(
+                    Bucket=bucket_name,
+                    Key=".workspace_metadata",
+                    Body=b"QR-Share Protected System Files",
+                    Metadata={
+                        "admin-hash": admin_hash,
+                        "guest-hash": guest_hash
+                    }
+                )
+            else:
                 return f"Infrastructure Allocation Failed: {e}", 400
             
-        # Encrypt and cache access validation records
-        workspaces_db[bucket_name] = {
-            "admin_hash": generate_password_hash(admin_pass),
-            "guest_hash": generate_password_hash(guest_pass)
-        }
         return redirect(url_for('workspace_portal', bucket_name=bucket_name))
 
     return '''
@@ -66,7 +83,6 @@ def workspace_portal(bucket_name):
     except ClientError:
         return f"Workspace Infrastructure Target '{bucket_name}' Not Found.", 404
     
-    # This is the single, unified target url to present/convert into a QR Code
     unified_share_url = f"{request.host_url}workspace/{bucket_name}/login"
     
     return f'''
@@ -79,27 +95,27 @@ def workspace_portal(bucket_name):
     </div>
     '''
 
-# 3. UNIFIED LOGIN GATE: Evaluates system access level by password validation
+# 3. UNIFIED LOGIN GATE: Pulls metadata directly from MinIO to prevent multi-pod drift
 @app.route('/workspace/<bucket_name>/login', methods=['GET', 'POST'])
 def login(bucket_name):
     if request.method == 'POST':
         entered_password = request.form.get('password', '')
-        fallback_secret = os.getenv("MINIO_ROOT_PASSWORD", "CHANGEME123")
-        workspace = workspaces_db.get(bucket_name)
         
-        # Check Admin credentials
-        if workspace and check_password_hash(workspace["admin_hash"], entered_password):
+        try:
+            # 🌟 Query MinIO directly for the hidden metadata file containing hashes
+            response = s3_client.head_object(Bucket=bucket_name, Key=".workspace_metadata")
+            metadata = response.get('Metadata', {})
+            admin_hash = metadata.get('admin-hash')
+            guest_hash = metadata.get('guest-hash')
+        except ClientError:
+            return "Workspace configuration metadata missing or corrupted.", 500
+
+        # Validate entries dynamically against the centralized MinIO hashes
+        if admin_hash and check_password_hash(admin_hash, entered_password):
             session[f"auth_role_{bucket_name}"] = "admin"
             return redirect(url_for('gallery', bucket_name=bucket_name))
-        
-        # Check Guest credentials
-        elif workspace and check_password_hash(workspace["guest_hash"], entered_password):
+        elif guest_hash and check_password_hash(guest_hash, entered_password):
             session[f"auth_role_{bucket_name}"] = "guest"
-            return redirect(url_for('gallery', bucket_name=bucket_name))
-            
-        # Fallback check for cluster reliability during scaling restarts
-        elif entered_password == fallback_secret:
-            session[f"auth_role_{bucket_name}"] = "admin"
             return redirect(url_for('gallery', bucket_name=bucket_name))
         else:
             return "Authentication Failed: Invalid Workspace Password", 401
@@ -122,7 +138,6 @@ def gallery(bucket_name):
     if not role:
         return "Access Forbidden: Authenticate through portal first.", 403
 
-    # Handle Upload stream allocations (Only for Admins)
     if request.method == 'POST':
         if role != 'admin':
             return "Security Violation: Guest accounts have read-only privileges.", 403
@@ -137,15 +152,16 @@ def gallery(bucket_name):
             )
             return redirect(url_for('gallery', bucket_name=bucket_name))
 
-    # Compile files and pull down dataset streams to stream via base64 pipeline 
     try:
         response = s3_client.list_objects_v2(Bucket=bucket_name)
         files = []
         for obj in response.get('Contents', []):
-            # Fetch object data directly from backend workspace context avoiding browser cross-domain drops
+            # 🌟 Skip the hidden configuration metadata file in the user UI grid view
+            if obj['Key'] == ".workspace_metadata":
+                continue
+                
             s3_obj = s3_client.get_object(Bucket=bucket_name, Key=obj['Key'])
             obj_bytes = s3_obj['Body'].read()
-            # Encode binary data into clean base64 string layout for direct inline HTML display
             b64_data = base64.b64encode(obj_bytes).decode('utf-8')
             content_type = s3_obj.get('ContentType', 'image/jpeg')
             inline_src = f"data:{content_type};base64,{b64_data}"
@@ -164,7 +180,6 @@ def gallery(bucket_name):
     </div>
     ''' if role == 'admin' else '<div style="color: #6c757d; background: #e2e3e5; padding: 10px; border-radius: 4px; margin-bottom: 30px;">ℹ️ Logged in under Guest parameters (Read-Only Mode).</div>'
 
-    # Build responsive image gallery interface layout mapping dynamic tools if user holds admin flags
     gallery_items = ""
     for f in files:
         action_buttons = f'''
@@ -194,6 +209,7 @@ def gallery(bucket_name):
     return f'''
     <div style="max-width: 900px; margin: 30px auto; font-family: sans-serif; padding: 0 20px;">
         <h2>Gallery: Storage Cluster '{bucket_name}'</h2>
+        <a href="/workspace/{bucket_name}" style="font-size: 12px; color: #6c757d;">< Back to Workspace Home</a>
         <hr style="margin: 15px 0; border: 0; border-top: 1px solid #eee;">
         {upload_form_block}
         <h3>Infrastructure Media Assets:</h3>
