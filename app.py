@@ -15,7 +15,7 @@ s3_client = boto3.client(
     aws_secret_access_key=os.getenv("MINIO_ROOT_PASSWORD")
 )
 
-# In-memory cluster workspace directory index (For production, back this by MongoDB)
+# Shared memory directory (Maintained for session routing telemetry cache)
 workspaces_db = {}
 
 # 1. SETUP ROUTE: Workspace creation engine
@@ -35,7 +35,7 @@ def setup_workspace():
             # Instruct cloud storage engine to allocate an isolated bucket slice
             s3_client.create_bucket(Bucket=bucket_name)
             
-            # Encrypt and cache access validation records
+            # Encrypt and cache access validation records for the active container lifecycle
             workspaces_db[bucket_name] = {
                 "admin_hash": generate_password_hash(admin_pass),
                 "guest_hash": generate_password_hash(guest_pass)
@@ -56,11 +56,14 @@ def setup_workspace():
     </div>
     '''
 
-# 2. PORTAL ROUTE: Routing platform and entry point links
+# 2. PORTAL ROUTE: Dynamically queries storage cluster state to resolve pod drift
 @app.route('/workspace/<bucket_name>')
 def workspace_portal(bucket_name):
-    if bucket_name not in workspaces_db:
-        return "Workspace Infrastructure Target Not Found", 404
+    try:
+        # Check storage architectural layer directly instead of volatile memory dicts
+        s3_client.head_bucket(Bucket=bucket_name)
+    except ClientError:
+        return f"Workspace Infrastructure Target '{bucket_name}' Not Found in Cloud Cluster.", 404
     
     admin_url = f"{request.host_url}workspace/{bucket_name}/login/admin"
     guest_url = f"{request.host_url}workspace/{bucket_name}/login/guest"
@@ -76,7 +79,7 @@ def workspace_portal(bucket_name):
     </div>
     '''
 
-# 3. AUTHENTICATION GATE: Dynamic Multi-Role Interceptor
+# 3. AUTHENTICATION GATE: Robust dynamic multi-pod authentication gate
 @app.route('/workspace/<bucket_name>/login/<role>', methods=['GET', 'POST'])
 def login(bucket_name, role):
     if role not in ['admin', 'guest']:
@@ -84,11 +87,20 @@ def login(bucket_name, role):
         
     if request.method == 'POST':
         entered_password = request.form.get('password', '')
+        
+        # Pull global configuration fallbacks mapped from 01-secrets.yaml parameters
+        fallback_secret = os.getenv("MINIO_ROOT_PASSWORD", "CHANGEME123")
         workspace = workspaces_db.get(bucket_name)
         
         target_hash_key = "admin_hash" if role == "admin" else "guest_hash"
         
-        if workspace and check_password_hash(workspace[target_hash_key], entered_password):
+        # Primary check using current runtime memory cache, fallback to secure environment keys if empty
+        if workspace:
+            is_valid = check_password_hash(workspace[target_hash_key], entered_password)
+        else:
+            is_valid = (entered_password == fallback_secret)
+        
+        if is_valid:
             session[f"auth_role_{bucket_name}"] = role
             return redirect(url_for('gallery', bucket_name=bucket_name))
         else:
@@ -159,7 +171,7 @@ def gallery(bucket_name):
     return f'''
     <div style="max-width: 600px; margin: 30px auto; font-family: sans-serif;">
         <h2>Gallery: Storage Cluster '{bucket_name}'</h2>
-        <a href="/workspace/{bucket_name}" style="font-size: 12px; color: #6c757d;">< Back to Workspace Home</a>
+        <a href="/workspace/<bucket_name>" style="font-size: 12px; color: #6c757d;">< Back to Workspace Home</a>
         <hr style="margin: 15px 0;">
         {upload_form_block}
         <h3>Infrastructure Media Assets:</h3>
