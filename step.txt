@@ -1,8 +1,8 @@
 ================================================================================
-🚀 DEPLOYMENT GUIDE: PROJECT QR-SHARE AUTOMATION PIPELINE
+🚀 DEPLOYMENT GUIDE: PROJECT QR-SHARE MULTI-TENANT AUTOMATION PIPELINE
 ================================================================================
-This guide details the step-by-step setup required to provision a fully automated 
-CI/CD loop using Jenkins, Docker Hub, and Kubernetes inside a clean Killercoda sandbox.
+This guide details the step-by-step setup required to provision your fully automated 
+Multi-Tenant SaaS GitOps pipeline using Jenkins, Docker Hub, and Kubernetes.
 
 --------------------------------------------------------------------------------
 [PHASE 1] ENVIRONMENT BOOTSTRAP & SYSTEM RIGHTS
@@ -20,9 +20,11 @@ CI/CD loop using Jenkins, Docker Hub, and Kubernetes inside a clean Killercoda s
    👉 RUN THIS COMMAND:
    $ sudo usermod -aG docker jenkins && sudo systemctl restart docker && sudo systemctl restart jenkins
 
+   ⚠️ CRITICAL: WAIT 10 SECONDS FOR SYSTEM INITIALIZATION BEFORE NEXT PHASE!
+
 
 --------------------------------------------------------------------------------
-[PHASE 2] CLONE CODEBASE & BYPASS PROXY LOCKS
+[PHASE 2] CLONE CODEBASE & VAULT CREDENTIALS MANUALLY
 --------------------------------------------------------------------------------
 
 [STEP 2.1] DOWNLOAD APPLICATION ARCHITECTURE FILES
@@ -30,66 +32,37 @@ CI/CD loop using Jenkins, Docker Hub, and Kubernetes inside a clean Killercoda s
    $ git clone https://github.com/prasadkelkar2003/Project-QR-Share.git
    $ cd Project-QR-Share
 
-[STEP 2.2] SET YOUR DOCKER HUB SECRET TOKEN
-   👉 INSTRUCTION: Copy your 'dckr_pat_...' key from your private notes app, 
-      replace the placeholder below, and execute it in your terminal window:
-   $ export DOCKER_HUB_PAT='PASTE_YOUR_SECRET_TOKEN_HERE'
+[STEP 2.2] OPEN THE WEB DASHBOARD INTERFACE
+   👉 NAVIGATION INSTRUCTIONS:
+   -> Go to 'TRAFFIC / PORTS' at the very top of your Killercoda panel interface.
+   -> Select 'ACCESS PORT', type 8080, and hit ENTER.
+   -> (If requested, get the unlock key via: $ cat /var/lib/jenkins/secrets/initialAdminPassword)
 
-[STEP 2.3] DROP THE INITIALIZATION BYPASS HOOK FILE TO DISK
-   💡 NOTE: This script reads your active terminal variable dynamically to safely 
-      inject your credentials directly into Jenkins, bypassing the network proxy.
-   👉 COPY-PASTE THIS ENTIRE GROOVY BLOCK INTO YOUR TERMINAL AS ONE COMMAND:
-
-sudo mkdir -p /var/lib/jenkins/init.groovy.d/
-sudo cat <<GROOVY > /var/lib/jenkins/init.groovy.d/force_inject.groovy
-import jenkins.model.*
-import com.cloudbees.plugins.credentials.*
-import com.cloudbees.plugins.credentials.domains.*
-import com.cloudbees.plugins.credentials.impl.*
-import jenkins.model.JenkinsLocationConfiguration
-
-// A. Force configure missing Jenkins Root URL parameter to sidestep 403 blocks
-def locationConfig = JenkinsLocationConfiguration.get()
-locationConfig.setUrl("http://localhost:8080/")
-locationConfig.save()
-
-// B. Securely register Docker Hub token into Jenkins Credential Vault
-def domain = Domain.global()
-def store = Jenkins.get().getExtensionList('com.cloudbees.plugins.credentials.SystemCredentialsProvider')[0].getStore()
-def credential = new UsernamePasswordCredentialsImpl(
-  CredentialsScope.GLOBAL,
-  "docker-hub-credentials",
-  "Docker Hub Automation Token",
-  "prad2003",
-  "\${DOCKER_HUB_PAT}"
-)
-store.addCredentials(domain, credential)
-GROOVY
-
-[STEP 2.4] RESET HOOK PERMISSIONS AND REBOOT JENKINS
-   👉 RUN THESE COMMANDS:
-   $ sudo chown -R jenkins:jenkins /var/lib/jenkins/init.groovy.d/
-   $ sudo systemctl restart jenkins
-   
-   ⚠️ CRITICAL: WAIT 15 SECONDS FOR SYSTEM INITIALIZATION BEFORE NEXT PHASE!
+[STEP 2.3] VAULT YOUR DOCKER HUB AUTOMATION TOKEN IN THE UI
+   👉 UI CONFIGURATION STEPS:
+   -> On the left sidebar menu layout, go to: Manage Jenkins ──► Credentials.
+   -> Click on the '(global)' domains scope link under the Stores column.
+   -> Click '+ Add Credentials' on the top left and input these exact fields:
+      * Kind       : Username with password
+      * Scope      : Global
+      * Username   : prad2003
+      * Password   : [Paste your dckr_pat_... secret key token here]
+      * ID         : docker-hub-credentials   <-- Must be exactly lowercase!
+      * Description: Docker Hub Automation Token
+   -> Click 'Create'.
 
 
 --------------------------------------------------------------------------------
 [PHASE 3] LINK REPOSITORY TO JENKINS UI
 --------------------------------------------------------------------------------
 
-[STEP 3.1] OPEN THE WEB DASHBOARD INTERFACE
-   👉 NAVIGATION INSTRUCTIONS:
-   -> Go to 'TRAFFIC / PORTS' at the very top of your Killercoda panel interface.
-   -> Select 'ACCESS PORT', type 8080, and hit ENTER.
-
-[STEP 3.2] MAP YOUR GITOPS PIPELINE JOB
+[STEP 3.1] MAP YOUR GITOPS PIPELINE JOB
    👉 INTERFACE UI STEPS:
-   -> Click 'NEW ITEM' on the top-left sidebar menu layout.
+   -> Return to the Jenkins home dashboard view and click 'NEW ITEM' on the sidebar.
    -> Name it exactly: PROJECT-QR-SHARE
    -> Select 'PIPELINE' as the project style type, then click 'OK'.
    
-[STEP 3.3] COMPLETE THE SCM CONFIGURATIONS AT THE BOTTOM OF THE PAGE
+[STEP 3.2] COMPLETE THE SCM CONFIGURATIONS AT THE BOTTOM OF THE PAGE
    👉 FILL OUT THESE EXACT FIELDS IN THE INTERFACE:
    -> Definition      : "Pipeline script from SCM"
    -> SCM             : "Git"
@@ -100,21 +73,24 @@ GROOVY
 
 
 --------------------------------------------------------------------------------
-[PHASE 4] TRIGGER EXECUTION & VERIFY SERVICE LIVE
+[PHASE 4] TRIGGER EXECUTION & LAUNCH MULTI-TENANT WORKSPACES
 --------------------------------------------------------------------------------
 
-[STEP 4.1] LAUNCH THE AUTOMATED CLOUD BUILD
+[STEP 4.1] LAUNCH THE AUTOMATED GITOPS BUILD
    👉 UI STEP:
-   -> Click 'BUILD NOW' on the left dashboard menu navigation.
-   -> Watch the Stage View grid turn bright green step-by-step.
+   -> Click 'BUILD NOW' on the left project dashboard navigation menu.
+   -> Watch the pipeline pull, compile, push to Docker Hub, and patch Kubernetes.
 
 [STEP 4.2] VERIFY RUNNING CLUSTER WORKLOADS
    👉 RUN THESE VERIFICATION COMMANDS IN TERMINAL:
    $ kubectl get pods
    $ kubectl get svc
+   (Ensure minio-deployment and photo-share-deployment are marked as Running/Ready)
 
-[STEP 4.3] ACCESS YOUR LIVE RUNNING WEB APPLICATION!
+[STEP 4.3] ACCESS YOUR LIVE SAAS PLATFORM AND PROVISION WORKSPACES!
    👉 NAVIGATION INSTRUCTIONS:
    -> Head back to the 'TRAFFIC / PORTS' menu tab at the top of the screen.
-   -> Select 'ACCESS PORT', type 30080, and launch your operational platform!
+   -> Select 'ACCESS PORT', type 30080, and launch the platform dashboard page.
+   -> You can now dynamically enter a unique event name and set Admin/Guest 
+      passwords. The platform handles object-bucket creation on the fly!
 ================================================================================
